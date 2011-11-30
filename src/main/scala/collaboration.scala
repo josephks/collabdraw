@@ -22,9 +22,12 @@ class CollaborationPlan(drawings: DrawingStore, drawingActor: Actor)
     case GET(Path(Seg("drawing" :: id :: Nil))) => {
       case Open(s) =>
         sockets += id -> (sockets(id) + s)
-        (drawingActor !! FetchDrawing(id))() match {
-          case rawSvg: String => s.send(rawSvg)
-        }
+        (drawingActor !! FetchDrawing(id)) foreach( x => x match {
+	  //I'm not sure in what thread this callback is executed in,
+	  //so to be safe do the s.send in another thread
+          case rawSvg: String => scala.actors.Actor.actor { s.send(rawSvg) }
+	  case y => System.err.println("ERROR expected string, got: "+y)
+        })
       case Message(s, Text(msg)) =>
         /* Message downstream clients with the new stroke and update
           the shared drawing. */
